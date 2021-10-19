@@ -1,17 +1,19 @@
 class Target:
-    def __init__(self, i, j, sensor=False):
+    def __init__(self, i, j):
         self.i = i
         self.j = j
-        self.sensor = sensor
 
     def __repr__(self):
-        return "(" + str(self.i) + "," + str(self.j) + ["", " sensor"][self.sensor] + ")"
+        return "(" + str(self.i) + "," + str(self.j) + ")"
 
     def __hash__(self):
-        return tuple(self.__dict__.values()).__hash__()
+        return (self.i, self.j).__hash__()
 
     def __eq__(self, other):
         return self.__hash__() == other.__hash__()
+
+    def __sub__(self, other):
+        return ((self.i - other.i) ** 2 + (self.j - other.j) ** 2) ** (1 / 2)
 
 
 class Graph:
@@ -64,6 +66,7 @@ class Graph:
             self.points.remove(None)
         if len(self.points) == 0:
             raise Exception("Parsing " + filename + " failed")
+        self.points.add(Target(0, 0))
         self.n = n
         self.m = m
 
@@ -81,18 +84,65 @@ class Graph:
 
     def true_plot(self):
         import matplotlib.pyplot as plt
-        plt.plot([point.i for point in self.points], [point.j for point in self.points], 'ro')
+        plt.plot([point.i for point in self.points], [point.j for point in self.points], 'r.')
         plt.gca().invert_yaxis()
         plt.show()
+
+    def evaluate(self, k, Rcom, Rcapt, sensor_encoding):
+        sensor_dict = {target: target in sensor_encoding for target in self.points}
+
+        k_dict = {target: (1 if sensor_dict[target] else 0) for target in self.points}
+        k_dict[Target(0, 0)] = k
+        visited = set()
+        connexes = {(point,) for point in self.points}
+        res = 0
+        for target in self.points:
+            visited.add(target)
+            if sensor_dict[target]:
+                res += 1
+            for other in self.points - visited:
+                d = target - other
+                if d < Rcom:
+                    target_connexe = None
+                    other_connexe = None
+                    for connexe in connexes:
+                        if target in connexe:
+                            target_connexe = connexe
+                        if other in connexe:
+                            other_connexe = connexe
+                    if target_connexe != other_connexe:
+                        connexes.remove(target_connexe)
+                        connexes.remove(other_connexe)
+                        connexes.add(target_connexe + other_connexe)
+                    if d < Rcapt:
+                        if sensor_dict[other]:
+                            k_dict[target] += 1
+                        if sensor_dict[target]:
+                            k_dict[other] += 1
+
+        print(connexes)
+        print(k_dict)
+
+        import matplotlib.pyplot as plt
+        sensors = {point if sensor_dict[point] else None for point in self.points}
+        sensors.remove(None)
+        plt.plot([point.i for point in self.points], [point.j for point in self.points], 'r.')
+        plt.plot([point.i for point in sensors], [point.j for point in sensors], 'bo')
+        plt.gca().invert_yaxis()
+        plt.show()
+
+        if len(connexes) != 1:
+            return False, res
+        for target in self.points:
+            if k_dict[target] < k:
+                return False, res
+        return True, res
 
 
 if __name__ == "__main__":
     g1 = Graph("grille1010_1.dat")
     g2 = Graph("grille1010_2.dat")
     g3 = Graph("captANOR150_7_4.dat")
-    g1.plot()
+    g4 = Graph("test.dat")
     print("")
-    g2.plot()
-    g1.true_plot()
-    g2.true_plot()
-    g3.true_plot()
+    print(g4.evaluate(1, 4, 4, [Target(0.01, 2.15), Target(2.86, 5.41)]))
