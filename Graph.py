@@ -1,3 +1,8 @@
+import matplotlib.pyplot as plt
+from math import sqrt, exp
+from random import random, choice
+
+
 class Target:
     def __init__(self, i, j):
         self.i = i
@@ -7,13 +12,13 @@ class Target:
         return "(" + str(self.i) + "," + str(self.j) + ")"
 
     def __hash__(self):
-        return (self.i, self.j).__hash__()
+        return hash((self.i, self.j))
 
     def __eq__(self, other):
-        return self.__hash__() == other.__hash__()
+        return self.i == other.i and self.j == other.j
 
     def __sub__(self, other):
-        return ((self.i - other.i) ** 2 + (self.j - other.j) ** 2) ** (1 / 2)
+        return sqrt((self.i - other.i) ** 2 + (self.j - other.j) ** 2)
 
 
 class Graph:
@@ -75,7 +80,6 @@ class Graph:
         return self.points.__repr__()
 
     def plot(self):
-        import matplotlib.pyplot as plt
         plt.plot([point.i for point in self.points], [point.j for point in self.points], 'r.')
         if not plt.gca().yaxis.get_inverted():
             plt.gca().invert_yaxis()
@@ -108,14 +112,12 @@ class instance_graph:
         return self.points.__repr__()
 
     def plot(self):
-        import matplotlib.pyplot as plt
         plt.plot([point.i for point in self.points], [point.j for point in self.points], 'r.')
         if not plt.gca().yaxis.get_inverted():
             plt.gca().invert_yaxis()
         plt.show()
 
     def evaluate(self, sensor_encoding, verbose=False):
-        import matplotlib.pyplot as plt
 
         sensor_dict = {target: target in sensor_encoding for target in self.points}
 
@@ -127,27 +129,35 @@ class instance_graph:
         connexes = {(point,) for point in sensors}.union({(Target(0, 0),)})
         for target in self.points:
             visited.add(target)
-            for other in (self.points - visited).intersection(self.neighborhood_dict[target]):
-                d = target - other
-                target_connexe = None
-                other_connexe = None
-                if target in sensors.union({Target(0, 0)}) and other in sensors.union({Target(0, 0)}):
-                    for connexe in connexes:
-                        if target in connexe:
-                            target_connexe = connexe
-                        if other in connexe:
-                            other_connexe = connexe
-                    if target_connexe != other_connexe:
-                        connexes.remove(target_connexe)
-                        connexes.remove(other_connexe)
-                        connexes.add(target_connexe + other_connexe)
-                        if verbose:
-                            plt.plot([target.i, other.i], [target.j, other.j], 'g')
-                if d < self.Rcapt:
-                    if other in sensors:
-                        k_dict[target] += 1
-                    if target in sensors:
-                        k_dict[other] += 1
+            if not (target in sensors or target == Target(0, 0)):
+                for other in self.neighborhood_dict[target] - visited:
+                    d = target - other
+                    if d < self.Rcapt:
+                        if other in sensors:
+                            k_dict[target] += 1
+                        if target in sensors:
+                            k_dict[other] += 1
+            else:
+                for other in self.neighborhood_dict[target] - visited:
+                    d = target - other
+                    if other in sensors or other == Target(0, 0):
+                        target_connexe = other_connexe = None
+                        for connexe in connexes:
+                            if target in connexe:
+                                target_connexe = connexe
+                            if other in connexe:
+                                other_connexe = connexe
+                        if target_connexe != other_connexe:
+                            connexes.remove(target_connexe)
+                            connexes.remove(other_connexe)
+                            connexes.add(target_connexe + other_connexe)
+                            if verbose:
+                                plt.plot([target.i, other.i], [target.j, other.j], 'g')
+                    if d < self.Rcapt:
+                        if other in sensors:
+                            k_dict[target] += 1
+                        if target in sensors:
+                            k_dict[other] += 1
 
         if verbose:
             sensors = {point if sensor_dict[point] else None for point in self.points}
@@ -170,17 +180,15 @@ class instance_graph:
         return True, len(sensors)
 
     def simulated_annealing(self):
-        from math import exp
-        from random import random
         n = len(self.points)
+        epsilon = 0.01
         energy_function = lambda feasible, cost: n * (1 - feasible) + cost
-        current_temperature = n//2
-        temperature_decrease_function = lambda T: T * 0.95 + 0.05/1000
-        stopping_criteria = lambda T: T < 0.01
-        iterations_per_temperature = n//2
+        current_temperature = n
+        temperature_decrease_function = lambda T: T * 0.95 + 0.05 * (epsilon / 2)
+        stopping_criteria = lambda T: T < epsilon
+        iterations_per_temperature = n // 2
 
         def next_solution(solution):
-            from random import choice
             point = choice(self.points_list)
             if point in solution:
                 return solution - {point}
@@ -200,7 +208,7 @@ class instance_graph:
                 energy_delta = new_energy - current_energy
                 if energy_delta < 0 or random() < exp(-energy_delta / current_temperature):
                     current_solution = new_solution
-                    current_energy = energy_function(*self.evaluate(current_solution))
+                    current_energy = new_energy
                     if current_energy < best_score:
                         best_score = current_energy
                         best_solution = current_solution
@@ -215,17 +223,18 @@ if __name__ == "__main__":
     Rcapt_ = 2
     Rcom_ = 3
 
+
     def full_test(filename):
         g = instance_graph(Graph(filename), k_, Rcapt_, Rcom_)
         sol, _ = g.simulated_annealing()
         print(sol)
         print(g.evaluate(sol, True))
 
+
     filenames = ["test.dat",
                  "grille1010_1.dat",
                  "grille1010_2.dat",
-                 "captANOR150_7_4.dat"
+                 "captANOR150_7_4.dat",
                  ]
     for file in filenames:
         full_test(file)
-
