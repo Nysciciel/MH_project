@@ -1,3 +1,4 @@
+taille de la grille complète :=100;
 nombre de cibles supprimées :=10;
 param:   Points:  a  b  :=
  1 : (1, 2)
